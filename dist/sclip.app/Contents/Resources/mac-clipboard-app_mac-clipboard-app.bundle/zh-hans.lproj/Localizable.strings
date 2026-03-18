@@ -1,0 +1,31 @@
+"menu.open_history" = "打开剪切板历史";
+"menu.launch_at_login" = "开机自启";
+"menu.launch_at_login_requires_app" = "开机自启（需使用 .app 运行）";
+"menu.settings" = "设置…";
+"menu.permissions" = "权限引导…";
+"menu.quit" = "退出";
+
+"settings.title" = "设置";
+"settings.hotkey" = "唤起快捷键";
+"settings.auto_paste" = "选择后自动粘贴";
+"settings.history_limit" = "历史保存条数";
+"settings.hotkey_capture_label" = "快捷键录入区域";
+"settings.hotkey_recording" = "按下组合键…";
+
+"permissions.title" = "权限引导";
+"permissions.header" = "权限引导";
+"permissions.desc" = "为了实现“在输入光标处弹出”和“选择后自动粘贴”，需要启用辅助功能授权。";
+"permissions.step1" = "1) 打开系统设置 → 隐私与安全性 → 辅助功能";
+"permissions.step2" = "2) 勾选 sclip（或你打包后的 App 名称）";
+"permissions.step3" = "3) 返回这里点击“重新检测”";
+"permissions.open_settings" = "打开辅助功能设置";
+"permissions.check_again" = "重新检测";
+"permissions.close" = "关闭";
+"permissions.granted" = "已授权";
+"permissions.not_granted" = "未授权";
+
+"popup.search_placeholder" = "搜索";
+"popup.unknown_content" = "未知内容";
+"kind.text" = "文本";
+"kind.image" = "图片";
+"kind.file" = "文件";
