@@ -9,6 +9,7 @@ BUNDLE_ID="${BUNDLE_ID:-com.example.sclip}"
 VERSION="${VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 SIGN_IDENTITY="${SIGN_IDENTITY:-}"
+ARCHS="${ARCHS:-}"
 export SWIFTPM_DISABLE_SANDBOX=1
 
 INFO_PLIST_SRC="$ROOT_DIR/Resources/Info.plist"
@@ -19,15 +20,57 @@ if [[ ! -f "$INFO_PLIST_SRC" ]]; then
   exit 1
 fi
 
-echo "Building (release)…"
 cd "$ROOT_DIR"
-swift build -c release --disable-sandbox >/dev/null
-BIN_DIR="$(swift build -c release --disable-sandbox --show-bin-path)"
-BIN_PATH="$BIN_DIR/mac-clipboard-app"
 
-if [[ ! -f "$BIN_PATH" ]]; then
-  echo "Missing binary at $BIN_PATH" >&2
-  exit 1
+build_for_arch() {
+  local arch="$1"
+  if [[ -z "$arch" ]]; then
+    echo "Building (release)…" >&2
+    swift build -c release --disable-sandbox >/dev/null
+    swift build -c release --disable-sandbox --show-bin-path
+    return
+  fi
+  echo "Building (release, $arch)…" >&2
+  swift build -c release --disable-sandbox --arch "$arch" >/dev/null
+  swift build -c release --disable-sandbox --arch "$arch" --show-bin-path
+}
+
+ARCH_LIST=()
+if [[ "$ARCHS" == "universal" || "$ARCHS" == "universal2" ]]; then
+  ARCH_LIST=("arm64" "x86_64")
+elif [[ -n "$ARCHS" ]]; then
+  ARCH_LIST=(${=ARCHS})
+fi
+
+BIN_PATH=""
+BIN_DIR=""
+if (( ${#ARCH_LIST[@]} == 0 )); then
+  BIN_DIR="$(build_for_arch "")"
+  BIN_PATH="$BIN_DIR/mac-clipboard-app"
+  if [[ ! -f "$BIN_PATH" ]]; then
+    echo "Missing binary at $BIN_PATH" >&2
+    exit 1
+  fi
+else
+  FIRST_BIN_DIR=""
+  INPUTS=()
+  for a in "${ARCH_LIST[@]}"; do
+    d="$(build_for_arch "$a")"
+    if [[ -z "$FIRST_BIN_DIR" ]]; then
+      FIRST_BIN_DIR="$d"
+    fi
+    p="$d/mac-clipboard-app"
+    if [[ ! -f "$p" ]]; then
+      echo "Missing binary at $p" >&2
+      exit 1
+    fi
+    INPUTS+=("$p")
+  done
+  BIN_DIR="$FIRST_BIN_DIR"
+  FAT_BIN="$ROOT_DIR/.build/tmp/${APP_NAME}-universal"
+  mkdir -p "$(dirname "$FAT_BIN")"
+  lipo -create "${INPUTS[@]}" -output "$FAT_BIN"
+  BIN_PATH="$FAT_BIN"
 fi
 
 DIST_DIR="$ROOT_DIR/dist"

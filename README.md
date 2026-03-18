@@ -27,6 +27,16 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
 ./scripts/build_app.sh
 ```
 
+架构（Intel/amd64 = x86_64）：
+
+```bash
+# 只打 Intel(x86_64) 包（在 Apple Silicon 上也可用）
+ARCHS=x86_64 ./scripts/build_app.sh
+
+# 打 universal2（同时支持 arm64 + x86_64，推荐对外分发）
+ARCHS=universal2 ./scripts/build_app.sh
+```
+
 ## 图标设置 
 - 准备 AppIcon.icns （推荐用 1024×1024 PNG 生成：建立 AppIcon.iconset 放入不同尺寸 PNG，然后运行 iconutil -c icns AppIcon.iconset ）。
 - 把生成的文件放到：
@@ -43,4 +53,3 @@ SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
 ## 开机自启
 
 - 运行在 .app 形态时，菜单栏提供“开机自启”开关。
-
