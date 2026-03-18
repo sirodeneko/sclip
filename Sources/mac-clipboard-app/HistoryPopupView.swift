@@ -121,6 +121,9 @@ struct HistoryPopupView: View {
     private func showSearch() {
         searchVisible = true
         shouldFocusSearch = true
+        DispatchQueue.main.async {
+            shouldFocusSearch = true
+        }
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
@@ -284,43 +287,118 @@ private final class KeyListenerNSView: NSView {
     }
 }
 
+@MainActor
 private struct SearchFieldView: NSViewRepresentable {
     @Binding var text: String
     @Binding var shouldFocus: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        Coordinator(text: $text, shouldFocus: $shouldFocus)
     }
 
     func makeNSView(context: Context) -> NSSearchField {
-        let field = NSSearchField()
+        let field = SclipSearchField()
         field.placeholderString = L("popup.search_placeholder")
         field.sendsSearchStringImmediately = true
         field.delegate = context.coordinator
+        context.coordinator.attach(field)
         return field
     }
 
     func updateNSView(_ nsView: NSSearchField, context: Context) {
-        nsView.placeholderString = L("popup.search_placeholder")
-        if nsView.stringValue != text {
+        let placeholder = L("popup.search_placeholder")
+        if nsView.placeholderString != placeholder {
+            nsView.placeholderString = placeholder
+        }
+        let isEditing = nsView.currentEditor() != nil
+        if !isEditing, nsView.stringValue != text {
             nsView.stringValue = text
         }
-        if shouldFocus, let window = nsView.window {
-            window.makeFirstResponder(nsView)
-            shouldFocus = false
+        context.coordinator.tryFocusIfNeeded()
+        if let editor = nsView.currentEditor() as? NSTextView {
+            let all = editor.string.count
+            if all > 0, editor.selectedRange.length == all, context.coordinator.wasProgrammaticUpdateRecently {
+                editor.setSelectedRange(NSRange(location: all, length: 0))
+            }
         }
     }
 
+    private final class SclipSearchField: NSSearchField {
+        override func performKeyEquivalent(with event: NSEvent) -> Bool {
+            if event.modifierFlags.contains(.command),
+               let chars = event.charactersIgnoringModifiers?.lowercased() {
+                switch chars {
+                case "a":
+                    return NSApp.sendAction(#selector(NSTextView.selectAll(_:)), to: nil, from: self)
+                case "x":
+                    return NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: self)
+                case "c":
+                    return NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: self)
+                case "v":
+                    return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: self)
+                default:
+                    break
+                }
+            }
+            return super.performKeyEquivalent(with: event)
+        }
+    }
+
+    @MainActor
     final class Coordinator: NSObject, NSSearchFieldDelegate {
         var text: Binding<String>
+        var shouldFocus: Binding<Bool>
+        private var pending: DispatchWorkItem?
+        private var lastProgrammaticUpdateAt: CFTimeInterval = 0
+        private weak var field: NSSearchField?
+        private var focusAttempts: Int = 0
 
-        init(text: Binding<String>) {
+        init(text: Binding<String>, shouldFocus: Binding<Bool>) {
             self.text = text
+            self.shouldFocus = shouldFocus
+        }
+
+        var wasProgrammaticUpdateRecently: Bool {
+            (CACurrentMediaTime() - lastProgrammaticUpdateAt) < 0.45
+        }
+
+        func attach(_ field: NSSearchField) {
+            self.field = field
+        }
+
+        func tryFocusIfNeeded() {
+            guard shouldFocus.wrappedValue else { return }
+            guard let field else { return }
+            guard focusAttempts < 20 else { return }
+
+            if let window = field.window {
+                window.makeFirstResponder(field)
+                field.selectText(nil)
+                if let editor = field.currentEditor() as? NSTextView {
+                    editor.selectAll(nil)
+                }
+                shouldFocus.wrappedValue = false
+                focusAttempts = 0
+                return
+            }
+
+            focusAttempts += 1
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 30_000_000)
+                self?.tryFocusIfNeeded()
+            }
         }
 
         func controlTextDidChange(_ obj: Notification) {
             guard let field = obj.object as? NSSearchField else { return }
-            text.wrappedValue = field.stringValue
+            let next = field.stringValue
+            pending?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                self?.lastProgrammaticUpdateAt = CACurrentMediaTime()
+                self?.text.wrappedValue = next
+            }
+            pending = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
         }
     }
 }
