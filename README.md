@@ -3,14 +3,14 @@
 ## 运行（开发态）
 
 ```bash
-cd /Users/bytedance/go/test/mac-clipboard-app
+cd mac-clipboard-app
 swift run
 ```
 
 ## 打包成 .app（用于签名/权限/开机自启）
 
 ```bash
-cd /Users/bytedance/go/test/mac-clipboard-app
+cd mac-clipboard-app
 chmod +x scripts/build_app.sh
 ./scripts/build_app.sh
 open dist/sclip.app
