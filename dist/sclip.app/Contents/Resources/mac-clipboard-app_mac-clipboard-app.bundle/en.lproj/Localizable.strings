@@ -9,6 +9,10 @@
 "settings.hotkey" = "Hotkey";
 "settings.auto_paste" = "Auto paste after selection";
 "settings.history_limit" = "History limit";
+"settings.language" = "Language";
+"settings.language.system" = "System";
+"settings.language.en" = "English";
+"settings.language.zhHans" = "Chinese (Simplified)";
 "settings.hotkey_capture_label" = "Hotkey capture area";
 "settings.hotkey_recording" = "Press keys…";
 

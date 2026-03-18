@@ -9,6 +9,10 @@
 "settings.hotkey" = "唤起快捷键";
 "settings.auto_paste" = "选择后自动粘贴";
 "settings.history_limit" = "历史保存条数";
+"settings.language" = "语言";
+"settings.language.system" = "跟随系统";
+"settings.language.en" = "English";
+"settings.language.zhHans" = "简体中文";
 "settings.hotkey_capture_label" = "快捷键录入区域";
 "settings.hotkey_recording" = "按下组合键…";
 
