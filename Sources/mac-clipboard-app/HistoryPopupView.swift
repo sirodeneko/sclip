@@ -4,6 +4,7 @@ import SwiftUI
 
 struct HistoryPopupView: View {
     @ObservedObject var store: ClipboardHistoryStore
+    let openToken: Int
     var onSelect: (ClipboardHistoryEntry) -> Void
     @ObservedObject private var i18n = LocalizationCenter.shared
 
@@ -41,6 +42,15 @@ struct HistoryPopupView: View {
         }
         .onChange(of: store.entries.count) { _ in
             ensureSelection()
+        }
+        .onChange(of: openToken) { _ in
+            query = ""
+            selectionIndex = nil
+            searchVisible = false
+            shouldFocusSearch = false
+            DispatchQueue.main.async {
+                ensureSelection()
+            }
         }
         .onAppear {
             ensureSelection()
@@ -94,6 +104,7 @@ struct HistoryPopupView: View {
                 }
             }
         }
+        .id(openToken)
     }
 
     private func ensureSelection() {

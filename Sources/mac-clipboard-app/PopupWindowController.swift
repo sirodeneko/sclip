@@ -9,6 +9,7 @@ final class PopupWindowController: NSObject, NSWindowDelegate {
     private var panel: NSPanel?
     private var hostingView: NSHostingView<HistoryPopupView>?
     private var localEventMonitor: Any?
+    private var openToken: Int = 0
 
     init(store: ClipboardHistoryStore, onSelect: @escaping (ClipboardHistoryEntry) -> Void) {
         self.store = store
@@ -30,7 +31,8 @@ final class PopupWindowController: NSObject, NSWindowDelegate {
 
     func show(at point: CGPoint) {
         let panel = ensurePanel()
-        hostingView?.rootView = makeRootView()
+        openToken &+= 1
+        hostingView?.rootView = makeRootView(openToken: openToken)
         position(panel: panel, near: point)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -49,7 +51,7 @@ final class PopupWindowController: NSObject, NSWindowDelegate {
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
 
-        let hosting = NSHostingView(rootView: makeRootView())
+        let hosting = NSHostingView(rootView: makeRootView(openToken: openToken))
         hosting.frame = CGRect(x: 0, y: 0, width: 520, height: 360)
 
         let panel = NSPanel(
@@ -74,8 +76,8 @@ final class PopupWindowController: NSObject, NSWindowDelegate {
         return panel
     }
 
-    private func makeRootView() -> HistoryPopupView {
-        HistoryPopupView(store: store) { [weak self] entry in
+    private func makeRootView(openToken: Int) -> HistoryPopupView {
+        HistoryPopupView(store: store, openToken: openToken) { [weak self] entry in
             guard let self else { return }
             self.onSelect(entry)
             self.close()
