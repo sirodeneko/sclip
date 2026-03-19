@@ -9,6 +9,7 @@
 "settings.hotkey" = "Hotkey";
 "settings.auto_paste" = "Auto paste after selection";
 "settings.history_limit" = "History limit";
+"settings.copy_file_path" = "Show “Copy File Path” in Finder";
 "settings.language" = "Language";
 "settings.language.system" = "System";
 "settings.language.en" = "English";

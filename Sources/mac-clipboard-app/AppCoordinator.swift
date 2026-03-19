@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 import Combine
+import CoreServices
 
 @MainActor
 final class AppCoordinator: NSObject, NSMenuDelegate {
@@ -10,6 +11,7 @@ final class AppCoordinator: NSObject, NSMenuDelegate {
     private let preferences = PreferencesModel()
     private let hotKeyManager = HotKeyManager()
     private let loginItemManager = LoginItemManager()
+    private lazy var serviceProvider = FilePathServiceProvider(preferences: preferences)
     private let permissionsWindow = PermissionsWindowController()
     private lazy var preferencesWindow = PreferencesWindowController(preferences: preferences) { [weak self] hotKey in
         self?.hotKeyManager.register(hotKey)
@@ -42,6 +44,14 @@ final class AppCoordinator: NSObject, NSMenuDelegate {
                 self?.store.updateMaxEntries(limit)
             }
             .store(in: &cancellables)
+
+        preferences.$enableCopyFilePath
+            .sink { [weak self] enabled in
+                self?.updateServices(enabled: enabled)
+            }
+            .store(in: &cancellables)
+
+        updateServices(enabled: preferences.enableCopyFilePath)
 
         LocalizationCenter.shared.$language
             .sink { [weak self] _ in
@@ -138,6 +148,21 @@ final class AppCoordinator: NSObject, NSMenuDelegate {
         } else {
             item.title = L("menu.launch_at_login")
         }
+    }
+
+    private func updateServices(enabled: Bool) {
+        if enabled {
+            registerServices()
+            NSApp.servicesProvider = serviceProvider
+        } else {
+            NSApp.servicesProvider = nil
+        }
+        NSUpdateDynamicServices()
+    }
+
+    private func registerServices() {
+        let url = Bundle.main.bundleURL as CFURL
+        LSRegisterURL(url, true)
     }
 
     private func applySelection(_ entry: ClipboardHistoryEntry) {

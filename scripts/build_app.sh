@@ -94,6 +94,7 @@ cp "$INFO_PLIST_SRC" "$CONTENTS_DIR/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$CONTENTS_DIR/Info.plist" >/dev/null
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$CONTENTS_DIR/Info.plist" >/dev/null
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$CONTENTS_DIR/Info.plist" >/dev/null
+/usr/libexec/PlistBuddy -c "Set :NSServices:0:NSPortName $BUNDLE_ID" "$CONTENTS_DIR/Info.plist" >/dev/null
 
 if [[ -d "$BIN_DIR" ]]; then
   for b in "$BIN_DIR"/*.bundle; do

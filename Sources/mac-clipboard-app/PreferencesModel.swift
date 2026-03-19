@@ -15,11 +15,16 @@ final class PreferencesModel: ObservableObject {
         didSet { UserDefaults.standard.set(historyLimit, forKey: Keys.historyLimit) }
     }
 
+    @Published var enableCopyFilePath: Bool {
+        didSet { UserDefaults.standard.set(enableCopyFilePath, forKey: Keys.enableCopyFilePath) }
+    }
+
     init() {
         self.hotKey = Self.loadHotKey() ?? .init(keyCode: UInt32(kVK_ANSI_V), modifiers: UInt32(cmdKey | shiftKey))
         self.autoPasteAfterSelection = UserDefaults.standard.object(forKey: Keys.autoPaste) as? Bool ?? true
         let savedLimit = UserDefaults.standard.object(forKey: Keys.historyLimit) as? Int
         self.historyLimit = max(1, savedLimit ?? 500)
+        self.enableCopyFilePath = UserDefaults.standard.object(forKey: Keys.enableCopyFilePath) as? Bool ?? false
     }
 
     private enum Keys {
@@ -27,6 +32,7 @@ final class PreferencesModel: ObservableObject {
         static let hotKeyModifiers = "hotKey.modifiers"
         static let autoPaste = "autoPasteAfterSelection"
         static let historyLimit = "clipboardHistory.maxEntries"
+        static let enableCopyFilePath = "settings.enableCopyFilePath"
     }
 
     private static func loadHotKey() -> HotKeyManager.HotKey? {

@@ -17,6 +17,8 @@ struct PreferencesView: View {
 
             Toggle(L("settings.auto_paste"), isOn: $preferences.autoPasteAfterSelection)
 
+            Toggle(L("settings.copy_file_path"), isOn: $preferences.enableCopyFilePath)
+
             HStack {
                 Text(L("settings.history_limit"))
                 Spacer()

@@ -9,6 +9,7 @@
 "settings.hotkey" = "唤起快捷键";
 "settings.auto_paste" = "选择后自动粘贴";
 "settings.history_limit" = "历史保存条数";
+"settings.copy_file_path" = "在访达显示“复制文件路径”";
 "settings.language" = "语言";
 "settings.language.system" = "跟随系统";
 "settings.language.en" = "English";
