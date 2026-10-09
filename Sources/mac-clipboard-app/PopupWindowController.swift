@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class PopupWindowController: NSObject, NSWindowDelegate {
     private let store: ClipboardHistoryStore
+    private let preferences: PreferencesModel
     private let onSelect: (ClipboardHistoryEntry) -> Void
 
     private var panel: NSPanel?
@@ -11,8 +12,13 @@ final class PopupWindowController: NSObject, NSWindowDelegate {
     private var localEventMonitor: Any?
     private var openToken: Int = 0
 
-    init(store: ClipboardHistoryStore, onSelect: @escaping (ClipboardHistoryEntry) -> Void) {
+    init(
+        store: ClipboardHistoryStore,
+        preferences: PreferencesModel,
+        onSelect: @escaping (ClipboardHistoryEntry) -> Void
+    ) {
         self.store = store
+        self.preferences = preferences
         self.onSelect = onSelect
     }
 
@@ -77,11 +83,19 @@ final class PopupWindowController: NSObject, NSWindowDelegate {
     }
 
     private func makeRootView(openToken: Int) -> HistoryPopupView {
-        HistoryPopupView(store: store, openToken: openToken) { [weak self] entry in
-            guard let self else { return }
-            self.onSelect(entry)
-            self.close()
-        }
+        HistoryPopupView(
+            store: store,
+            preferences: preferences,
+            openToken: openToken,
+            onSelect: { [weak self] entry in
+                guard let self else { return }
+                self.onSelect(entry)
+                self.close()
+            },
+            onHorizontalScroll: { [weak self] direction, fast, target in
+                self?.postHorizontalScrollEvent(direction: direction, fast: fast, target: target)
+            }
+        )
     }
 
     private func position(panel: NSPanel, near point: CGPoint) {
@@ -109,9 +123,13 @@ final class PopupWindowController: NSObject, NSWindowDelegate {
         guard localEventMonitor == nil else { return }
         localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
             guard let self else { return event }
-            if event.type == .keyDown, event.keyCode == 53 {
-                self.close()
-                return nil
+            if event.type == .keyDown {
+                // Only Escape is handled here; horizontal-scroll shortcut keys
+                // are consumed by the popup view's first-responder keyDown.
+                if event.keyCode == 53 {
+                    self.close()
+                    return nil
+                }
             }
             if event.type == .leftMouseDown || event.type == .rightMouseDown {
                 if let panel = self.panel, panel.isVisible {
@@ -123,6 +141,67 @@ final class PopupWindowController: NSObject, NSWindowDelegate {
                 }
             }
             return event
+        }
+    }
+
+    // MARK: Keyboard -> scrollWheel event synthesis
+
+    private func postHorizontalScrollEvent(direction: Int, fast: Bool, target: NSScrollView?) {
+        guard let panel else { return }
+
+        // Negate: a positive scrollWheel delta pans content right (browse
+        // left), but the arrow key should browse in its own direction.
+        let pixelDelta = -Int32((fast ? 120 : 16) * direction)
+
+        guard let cgEvent = CGEvent(
+            scrollWheelEvent2Source: nil,
+            units: .pixel,
+            wheelCount: 2,
+            wheel1: 0,
+            wheel2: pixelDelta,
+            wheel3: 0
+        ) else { return }
+
+        cgEvent.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+        cgEvent.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: Int64(pixelDelta))
+
+        guard let nsEvent = NSEvent(cgEvent: cgEvent) else { return }
+
+        // Preferred: deliver the real NSEvent straight to the scroll view that
+        // actually owns the horizontal axis, and let IT scroll itself (the
+        // same method AppKit invokes for a trackpad).
+        if let target {
+            let before = target.contentView.bounds.origin.x
+            target.scrollWheel(with: nsEvent)
+            let after = target.contentView.bounds.origin.x
+            if after != before { return }
+
+            // It ignored the event; try its document view (responder chain).
+            if let doc = target.documentView {
+                doc.scrollWheel(with: nsEvent)
+                if target.contentView.bounds.origin.x != before { return }
+            }
+        }
+
+        // Fallback A: hit-test the popup center and deliver there.
+        if let contentView = panel.contentView {
+            let gp = CGPoint(x: panel.frame.midX, y: panel.frame.midY)
+            let wp = CGPoint(x: gp.x - panel.frame.origin.x, y: gp.y - panel.frame.origin.y)
+            let cp = contentView.convert(wp, from: nil)
+            if let hit = contentView.hitTest(cp) {
+                hit.scrollWheel(with: nsEvent)
+                return
+            }
+            panel.sendEvent(nsEvent)
+            return
+        }
+
+        // Fallback B: post the raw CGEvent at system level.
+        let pid = pid_t(ProcessInfo.processInfo.processIdentifier)
+        if AXIsProcessTrusted() {
+            cgEvent.post(tap: .cghidEventTap)
+        } else {
+            cgEvent.postToPid(pid)
         }
     }
 

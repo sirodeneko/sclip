@@ -11,12 +11,13 @@ final class AppCoordinator: NSObject, NSMenuDelegate {
     private let preferences = PreferencesModel()
     private let hotKeyManager = HotKeyManager()
     private let loginItemManager = LoginItemManager()
+    private lazy var globalScroll = GlobalScrollManager(preferences: preferences)
     private lazy var serviceProvider = FilePathServiceProvider(preferences: preferences)
     private let permissionsWindow = PermissionsWindowController()
     private lazy var preferencesWindow = PreferencesWindowController(preferences: preferences) { [weak self] hotKey in
         self?.hotKeyManager.register(hotKey)
     }
-    private lazy var popup = PopupWindowController(store: store) { [weak self] entry in
+    private lazy var popup = PopupWindowController(store: store, preferences: preferences) { [weak self] entry in
         guard let self else { return }
         self.applySelection(entry)
     }
@@ -67,14 +68,18 @@ final class AppCoordinator: NSObject, NSMenuDelegate {
             if !granted {
                 self.permissionsWindow.show()
             }
+            // Permission may have just been granted; (re)try the global tap.
+            self.globalScroll.start()
             self.popup.toggle()
         }
         hotKeyManager.register(preferences.hotKey)
+        globalScroll.start()
     }
 
     func stop() {
         monitor.stop()
         hotKeyManager.unregister()
+        globalScroll.stop()
         if let statusItem {
             NSStatusBar.system.removeStatusItem(statusItem)
         }

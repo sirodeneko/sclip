@@ -16,6 +16,11 @@
 "settings.language.zhHans" = "Chinese (Simplified)";
 "settings.hotkey_capture_label" = "Hotkey capture area";
 "settings.hotkey_recording" = "Press keys…";
+"settings.hscroll_section" = "Global horizontal scrolling";
+"settings.hscroll_left" = "Scroll left";
+"settings.hscroll_right" = "Scroll right";
+"settings.hscroll_desc" = "In any app (browser, spreadsheets…), hover the pointer over the content and press the shortcut to pan horizontally without using the scroll bar. Hold ⌥ for faster scrolling. Keys pass through automatically when an editable text field is focused. Requires Accessibility permission.";
+"settings.hscroll_capture_label" = "Horizontal scrolling shortcut capture area";
 
 "permissions.title" = "Permissions";
 "permissions.header" = "Permissions Guide";

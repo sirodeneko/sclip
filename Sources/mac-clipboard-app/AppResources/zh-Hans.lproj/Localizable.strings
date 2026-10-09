@@ -16,6 +16,11 @@
 "settings.language.zhHans" = "简体中文";
 "settings.hotkey_capture_label" = "快捷键录入区域";
 "settings.hotkey_recording" = "按下组合键…";
+"settings.hscroll_section" = "全局水平滚动";
+"settings.hscroll_left" = "向左滚动";
+"settings.hscroll_right" = "向右滚动";
+"settings.hscroll_desc" = "在任意应用（浏览器、表格等）中，把鼠标悬停在要滚动的内容上，按下快捷键即可左右平移，无需拖动滚动条；加按 ⌥ 快速滚动。焦点位于文本输入框时按键自动放行，保留选词/光标移动。需要辅助功能权限。";
+"settings.hscroll_capture_label" = "水平滚动快捷键录入区域";
 
 "permissions.title" = "权限引导";
 "permissions.header" = "权限引导";

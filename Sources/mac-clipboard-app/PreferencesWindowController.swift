@@ -26,7 +26,7 @@ final class PreferencesWindowController {
         let hosting = NSHostingView(rootView: view)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 260),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 410),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false

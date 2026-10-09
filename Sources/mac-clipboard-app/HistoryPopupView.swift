@@ -3,15 +3,40 @@ import Carbon.HIToolbox
 import SwiftUI
 
 struct HistoryPopupView: View {
+    /// Width of the visible list area (window 520 - VStack padding 24).
+    private static let defaultViewportWidth: CGFloat = 496
+    private static let maxTableWidth: CGFloat = 2400
+
     @ObservedObject var store: ClipboardHistoryStore
+    @ObservedObject var preferences: PreferencesModel
     let openToken: Int
     var onSelect: (ClipboardHistoryEntry) -> Void
+    /// Keyboard horizontal scroll request:
+    /// (direction -1/1, fast page jump, target scroll view to deliver to).
+    var onHorizontalScroll: (Int, Bool, NSScrollView?) -> Void
     @ObservedObject private var i18n = LocalizationCenter.shared
 
+    @StateObject private var scrollObserver = HorizontalScrollObserver()
     @State private var query: String = ""
     @State private var selectionIndex: Int?
     @State private var searchVisible = false
     @State private var shouldFocusSearch = false
+    @State private var tableWidth: CGFloat
+
+    init(
+        store: ClipboardHistoryStore,
+        preferences: PreferencesModel,
+        openToken: Int,
+        onSelect: @escaping (ClipboardHistoryEntry) -> Void,
+        onHorizontalScroll: @escaping (Int, Bool, NSScrollView?) -> Void
+    ) {
+        self.store = store
+        self.preferences = preferences
+        self.openToken = openToken
+        self.onSelect = onSelect
+        self.onHorizontalScroll = onHorizontalScroll
+        _tableWidth = State(initialValue: Self.measureTableWidth(entries: store.entries))
+    }
 
     private var filtered: [ClipboardHistoryEntry] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -39,21 +64,25 @@ struct HistoryPopupView: View {
         })
         .onChange(of: query) { _ in
             ensureSelection()
+            refreshTableWidth()
         }
         .onChange(of: store.entries.count) { _ in
             ensureSelection()
+            refreshTableWidth()
         }
         .onChange(of: openToken) { _ in
             query = ""
             selectionIndex = nil
             searchVisible = false
             shouldFocusSearch = false
+            refreshTableWidth()
             DispatchQueue.main.async {
                 ensureSelection()
             }
         }
         .onAppear {
             ensureSelection()
+            refreshTableWidth()
         }
     }
 
@@ -84,27 +113,84 @@ struct HistoryPopupView: View {
     }
 
     private var list: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 6) {
-                    ForEach(Array(filtered.enumerated()), id: \.element.id) { index, entry in
-                        HistoryRow(entry: entry, store: store, isSelected: selectionIndex == index)
-                            .id(entry.id)
-                            .onTapGesture {
-                                selectionIndex = index
-                                onSelect(entry)
-                            }
+        // Outer horizontal scroller pans the whole "wide table"; the inner
+        // vertical scroller (and its selection scrolling) stays independent,
+        // so moving up/down never resets the horizontal position.
+        ScrollView(.horizontal, showsIndicators: false) {
+            ScrollViewReader { verticalProxy in
+                ScrollView {
+                    LazyVStack(spacing: 6) {
+                        ForEach(Array(filtered.enumerated()), id: \.element.id) { index, entry in
+                            HistoryRow(entry: entry, store: store, isSelected: selectionIndex == index)
+                                .id(entry.id)
+                                .frame(width: tableWidth)
+                                .onTapGesture {
+                                    selectionIndex = index
+                                    onSelect(entry)
+                                }
+                        }
+                    }
+                }
+                // Explicit cross-axis width is required: otherwise the inner
+                // vertical ScrollView stays at viewport width and the outer
+                // horizontal scroller has no overflow.
+                .frame(width: tableWidth)
+                .onChange(of: selectionIndex) { _ in
+                    guard let selectionIndex, selectionIndex >= 0, selectionIndex < filtered.count else { return }
+                    withAnimation(.easeOut(duration: 0.08)) {
+                        verticalProxy.scrollTo(filtered[selectionIndex].id, anchor: .center)
                     }
                 }
             }
-            .onChange(of: selectionIndex) { _ in
-                guard let selectionIndex, selectionIndex >= 0, selectionIndex < filtered.count else { return }
-                withAnimation(.easeOut(duration: 0.08)) {
-                    proxy.scrollTo(filtered[selectionIndex].id, anchor: .center)
+            // Zero-size anchor observes (never writes) the backing scrollers
+            // to mirror the position for the indicator.
+            .background(
+                ScrollAnchorView(observer: scrollObserver).frame(width: 0, height: 0)
+            )
+        }
+        .overlay(
+            horizontalScrollIndicator.padding(.bottom, 2),
+            alignment: .bottom
+        )
+    }
+
+    @ViewBuilder
+    private var horizontalScrollIndicator: some View {
+        if scrollObserver.hasHorizontalOverflow {
+            VStack(spacing: 4) {
+                if scrollObserver.feedbackActive {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.left.and.right")
+                        Text("\(Int((scrollObserver.scrollProgress * 100).rounded()))%")
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule().fill(Color.primary.opacity(0.1))
+                    )
+                    .transition(.opacity)
                 }
+
+                let trackWidth: CGFloat = 120
+                let ratio = scrollObserver.viewportWidth / max(scrollObserver.contentWidth, 1)
+                let thumbWidth = min(max(trackWidth * ratio, 28), trackWidth)
+                let thumbX = (trackWidth - thumbWidth) * scrollObserver.scrollProgress
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.12))
+                    Capsule().fill(
+                        scrollObserver.feedbackActive
+                            ? Color.accentColor
+                            : Color.primary.opacity(0.35)
+                    )
+                    .frame(width: thumbWidth)
+                    .offset(x: thumbX)
+                }
+                .frame(width: trackWidth, height: 4)
+                .animation(.easeOut(duration: 0.12), value: scrollObserver.offsetX)
             }
         }
-        .id(openToken)
     }
 
     private func ensureSelection() {
@@ -131,6 +217,18 @@ struct HistoryPopupView: View {
             showSearch()
             return true
         }
+        // Same reliable path as up/down: this view is first responder, so
+        // returning true fully consumes the event (no system beep). When the
+        // search field is focused, its field editor is first responder and we
+        // never get here, so standard text editing is preserved.
+        if eventMatches(event, preferences.hScrollLeft) {
+            onHorizontalScroll(-1, isFast(event, preferences.hScrollLeft), scrollObserver.targetScrollView())
+            return true
+        }
+        if eventMatches(event, preferences.hScrollRight) {
+            onHorizontalScroll(1, isFast(event, preferences.hScrollRight), scrollObserver.targetScrollView())
+            return true
+        }
         if event.keyCode == UInt16(kVK_UpArrow) {
             moveSelection(-1)
             return true
@@ -146,6 +244,45 @@ struct HistoryPopupView: View {
             return true
         }
         return false
+    }
+
+    private func refreshTableWidth() {
+        tableWidth = Self.measureTableWidth(entries: filtered)
+    }
+
+    private func eventMatches(_ event: NSEvent, _ hotKey: HotKeyManager.HotKey) -> Bool {
+        UInt32(event.keyCode) == hotKey.keyCode && carbonModifiers(event) == hotKey.modifiers
+    }
+
+    private func carbonModifiers(_ event: NSEvent) -> UInt32 {
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        var carbon: UInt32 = 0
+        if flags.contains(.command) { carbon |= UInt32(cmdKey) }
+        if flags.contains(.shift) { carbon |= UInt32(shiftKey) }
+        if flags.contains(.option) { carbon |= UInt32(optionKey) }
+        if flags.contains(.control) { carbon |= UInt32(controlKey) }
+        return carbon
+    }
+
+    /// Fast jump: Option held in addition to the configured shortcut (not
+    /// counted when Option is already part of it).
+    private func isFast(_ event: NSEvent, _ hotKey: HotKeyManager.HotKey) -> Bool {
+        event.modifierFlags.contains(.option) && (hotKey.modifiers & UInt32(optionKey) == 0)
+    }
+
+    private static func measureTableWidth(entries: [ClipboardHistoryEntry]) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        var maxTextWidth: CGFloat = 0
+        for entry in entries.prefix(1000) {
+            guard let preview = entry.previewText else { continue }
+            let oneLine = preview.replacingOccurrences(of: "\n", with: " ")
+            let clipped = String(oneLine.prefix(500))
+            let width = (clipped as NSString).size(withAttributes: [.font: font]).width
+            if width > maxTextWidth { maxTextWidth = width }
+        }
+        // thumbnail 36 + spacing 10 + row padding 20 + trailing breathing room
+        let chrome: CGFloat = 90
+        return min(max(maxTextWidth + chrome, defaultViewportWidth), maxTableWidth)
     }
 
     private func moveSelection(_ delta: Int) {

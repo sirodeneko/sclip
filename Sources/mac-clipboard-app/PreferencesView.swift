@@ -3,8 +3,6 @@ import SwiftUI
 struct PreferencesView: View {
     @ObservedObject var preferences: PreferencesModel
     var onHotKeyChanged: (HotKeyManager.HotKey) -> Void
-    @State private var requestHotKeyFocus: Bool = false
-    @State private var isCapturingHotKey: Bool = false
     @ObservedObject private var i18n = LocalizationCenter.shared
 
     var body: some View {
@@ -12,7 +10,10 @@ struct PreferencesView: View {
             HStack {
                 Text(L("settings.hotkey"))
                 Spacer()
-                hotKeyCapture
+                HotKeyCaptureBox(
+                    hotKey: $preferences.hotKey,
+                    accessibilityLabel: L("settings.hotkey_capture_label")
+                )
             }
 
             Toggle(L("settings.auto_paste"), isOn: $preferences.autoPasteAfterSelection)
@@ -41,21 +42,55 @@ struct PreferencesView: View {
                 .frame(width: 180)
             }
 
-            Text(L("permissions.desc"))
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L("settings.hscroll_section"))
+                    .font(.system(size: 13, weight: .semibold))
+
+                HStack {
+                    Text(L("settings.hscroll_left"))
+                    Spacer()
+                    HotKeyCaptureBox(
+                        hotKey: $preferences.hScrollLeft,
+                        accessibilityLabel: L("settings.hscroll_capture_label"),
+                        width: 150
+                    )
+                }
+
+                HStack {
+                    Text(L("settings.hscroll_right"))
+                    Spacer()
+                    HotKeyCaptureBox(
+                        hotKey: $preferences.hScrollRight,
+                        accessibilityLabel: L("settings.hscroll_capture_label"),
+                        width: 150
+                    )
+                }
+
+                Text(L("settings.hscroll_desc"))
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Spacer()
         }
         .padding(16)
-        .frame(width: 420, height: 260)
+        .frame(width: 420, height: 410)
         .onChange(of: preferences.hotKey) { newValue in
             onHotKeyChanged(newValue)
         }
     }
+}
 
-    private var hotKeyCapture: some View {
+private struct HotKeyCaptureBox: View {
+    @Binding var hotKey: HotKeyManager.HotKey
+    let accessibilityLabel: String
+    var width: CGFloat = 180
+
+    @State private var requestHotKeyFocus: Bool = false
+    @State private var isCapturingHotKey: Bool = false
+
+    var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isCapturingHotKey ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.06))
@@ -65,17 +100,17 @@ struct PreferencesView: View {
                 )
 
             HStack(spacing: 8) {
-                Text(isCapturingHotKey ? L("settings.hotkey_recording") : HotKeyDisplay.string(for: preferences.hotKey))
+                Text(isCapturingHotKey ? L("settings.hotkey_recording") : HotKeyDisplay.string(for: hotKey))
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .padding(.horizontal, 10)
                 Spacer(minLength: 0)
             }
 
-            KeyCaptureView(hotKey: $preferences.hotKey, requestFocus: $requestHotKeyFocus, isCapturing: $isCapturingHotKey)
+            KeyCaptureView(hotKey: $hotKey, requestFocus: $requestHotKeyFocus, isCapturing: $isCapturingHotKey)
                 .opacity(0.01)
         }
-        .frame(width: 180, height: 30)
-        .accessibilityLabel(L("settings.hotkey_capture_label"))
+        .frame(width: width, height: 30)
+        .accessibilityLabel(accessibilityLabel)
         .contentShape(Rectangle())
         .onTapGesture {
             isCapturingHotKey = true
